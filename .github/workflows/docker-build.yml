@@ -3,18 +3,18 @@ name: Build and push Docker image to registry
 on:
   workflow_call:
     inputs:
-      Repository:
+      registry:
+        description: "URL of container registry"
+        type: string
+      repository:
         description: "Path/name of container repository (without registry URL)"
         type: string
-      Dockerfile:
+      dockerfile:
         description: "Filename of Dockerfile. Defaults to 'Dockerfile'"
         type: string
         default: "Dockerfile"
 
     secrets:
-      registry_url:
-        description: "URL of container registry"
-        required: true
       registry_username:
         description: "Username to authenticate against container registry"
         required: true
@@ -29,36 +29,54 @@ jobs:
     steps:      
       - 
         name: Checkout source code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - 
         name: Login to container registry
         uses: docker/login-action@v2
         with:
-          registry: ${{ secrets.registry_url }}
+          registry: ${{ inputs.registry }}
           username: ${{ secrets.registry_username }}
           password: ${{ secrets.registry_password }}
           logout: true
       - 
         name: Build and push to registry
         run: |
-          DOCKERFILE=${{ github.event.inputs.Dockerfile }}
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/protomodule/ops/main/helpers/generate-changelog.sh)" -- -x -n 100
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/protomodule/ops/main/helpers/docker-build.sh)" -- -f ${DOCKERFILE:-Dockerfile} $REPOSITORY
+          DOCKERFILE=${{ inputs.dockerfile }}
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/saubermacherag/cloud-actions/main/helpers/generate-changelog.sh)" -- -x -n 100
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/saubermacherag/cloud-actions/main/helpers/docker-build.sh)" -- -f ${DOCKERFILE:-Dockerfile} ${{ inputs.registry }}/${{ inputs.repository }}
       -
+        id: output
         name: Set outputs
         run: |
           source version.sh
-          echo "::set-output name=version::$VERSION"
+          echo "::set-output name=version_info::$VERSION"
           echo "::set-output name=commit::$COMMIT"
           echo "::set-output name=short::$SHORT"
           echo "::set-output name=branch::$BRANCH"
           echo "::set-output name=docker_tag::$DOCKER_TAG"
           echo "::set-output name=latest_tag::$LATEST_TAG"
           echo "::set-output name=buildtime::$TIMESTAMP"
-          echo "::set-output name=repository::$REPOSITORY"
       -
         name: Upload changelog artifact
         uses: actions/upload-artifact@v3.1.0
         with:
           name: Changelog
           path: ${{ github.workspace }}/changelog.html
+      -
+        name: Summarize update
+        run: |
+          echo "### 🐳 Build summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "| | Build info |" >> $GITHUB_STEP_SUMMARY
+          echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Current version | `${{ steps.output.outputs.version_info }}` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Hash of commit | ${{ steps.output.outputs.commit }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Short hash of commit | ${{ steps.output.outputs.short }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build originates from branch | ${{ steps.output.outputs.branch }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker image version tag | ${{ steps.output.outputs.docker_tag }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Latest tag | ${{ steps.output.outputs.latest_tag }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build timestamp | ${{ steps.output.outputs.buildtime }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Registry | ${{ inputs.registry }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Repository | ${{ inputs.repository }} |" >> $GITHUB_STEP_SUMMARY
