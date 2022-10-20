@@ -17,6 +17,11 @@ command -v npx >/dev/null 2>&1 || {
   exit 1
 }
 
+command -v openssl >/dev/null 2>&1 || {
+  echo -e "💥  ${WA}OpenSSL is not installed.$NC";
+  exit 1
+}
+
 if [ ! -d ".git" ]; then
   echo -e "💥  ${WA}This is not a git repository.$NC Please run inside root directory of a repository."
   exit 1
@@ -119,7 +124,7 @@ main () {
     if [ "$OUTPUT_HTML" ]; then
         echo "💄  Writing changelog as HTML"
 
-        TEMP_DIR=`LC_ALL=C tr -dc A-Za-z0-9 </dev/urandom | head -c 32`
+        TEMP_DIR=`openssl rand -hex 16`
         if [ -d "$TEMP_DIR" ]; then
             echo -e "💥  ${WA}Fatal error.$NC Temp directory exists."
             exit 1
@@ -128,7 +133,7 @@ main () {
         TEMP_DIR="./tmp-$TEMP_DIR"
         mkdir "$TEMP_DIR"
         echo "🌍  Downloading styles"
-        curl -s -o "$TEMP_DIR/basic.min.css" https://raw.githubusercontent.com/saubermacherag/cloud-actions/main/templates/changelog/pinkrobin.min.css
+        curl -s -o "$TEMP_DIR/pinkrobin.min.css" https://raw.githubusercontent.com/saubermacherag/cloud-actions/main/templates/changelog/pinkrobin.min.css
         echo "📝  Writing temporary Markdown"
         echo "$MARKDOWN" > "$TEMP_DIR/changelog.md"
         echo "🔮  Converting Markdown to HTML"
