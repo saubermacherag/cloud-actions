@@ -1,0 +1,100 @@
+name: Deploy container image to Heroku
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Deploy to'
+        default: Development
+        type: string
+        required: true
+      registry:
+        description: "URL of container registry"
+        type: string
+      repository:
+        description: "Path/name of container repository (without registry URL)"
+        type: string
+      application:
+        description: "Name of application"
+        required: true
+        type: string
+      system:
+        description: "System name of application"
+        required: true
+        type: string
+
+    secrets:
+      registry_username:
+        description: "Username to authenticate against container registry"
+        required: true
+      registry_password:
+        description: "Password to authenticate against container registry"
+        required: true
+      heroku_api_token:
+        description: "API token for Heroku with deployment access"
+        required: true
+      environment_identifier:
+        description: "Shortname/identifier of the selected environment"
+        required: true
+
+jobs:
+  Build:
+    runs-on: [self-hosted, protomodule]
+
+    steps:      
+      - 
+        name: Checkout source code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - 
+        name: Login to container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ secrets.registry_username }}
+          password: ${{ secrets.registry_password }}
+          logout: true
+      - 
+        name: Login to Heroku
+        uses: docker/login-action@v2
+        with:
+          registry: registry.heroku.com
+          username: _
+          password: ${{ secrets.heroku_api_token }}
+          logout: true
+      -
+        id: version
+        name: Get version information
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/saubermacherag/cloud-actions/main/helpers/generate-version.sh)" -- -s version
+          source version.sh
+          echo "::set-output name=version::$VERSION"
+          echo "::set-output name=commit::$COMMIT"
+          echo "::set-output name=short::$SHORT"
+          echo "::set-output name=branch::$BRANCH"
+          echo "::set-output name=docker_tag::$DOCKER_TAG"
+          echo "::set-output name=latest_tag::$LATEST_TAG"
+          echo "::set-output name=deployment_tag::${DOCKER_TAG:-${LATEST_TAG:-main-latest}}"
+          ENV_ID='${{ secrets.environment_identifier }}'
+          ENV_ID=${ENV_ID:-unknown}
+          if [ "$ENV_ID" = "unknown" ]; then echo "::error::GitHub Environment secret ENVIRONMENT_IDENTIFIER is missing"; exit 1; fi
+          echo "::set-output name=app_name::${{ inputs.application }}-${{ secrets.environment_identifier }}-${{ inputs.system }}"
+      - 
+        name: Push to Heroku & release
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/saubermacherag/cloud-actions/main/helpers/heroku-deploy.sh)" -- -k ${{ secrets.heroku_api_token }} -a ${{ steps.version.outputs.app_name }} -i ${{ inputs.registry }}/${{ inputs.repository}}:${{ steps.version.outputs.deployment_tag }}
+      -
+        name: Summarize release
+        run: |
+          echo "### :rocket: ${{ steps.version.outputs.app_name }} deployment summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "| | Deployment Info |" >> $GITHUB_STEP_SUMMARY
+          echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Current version | `${{ needs.version.outputs.version }}` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Hash of commit | ${{ needs.Version.outputs.commit }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Short hash of commit | ${{ needs.Version.outputs.short }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build originates from branch | ${{ needs.Version.outputs.branch }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker image version tag | ${{ needs.Version.outputs.docker_tag }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Latest tag | ${{ needs.Version.outputs.latest_tag }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployment tag | ${{ needs.Version.outputs.deployment_tag }} |" >> $GITHUB_STEP_SUMMARY
