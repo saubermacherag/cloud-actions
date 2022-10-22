@@ -38,8 +38,10 @@ on:
         required: true
 
 jobs:
-  Build:
+  Deploy:
     runs-on: [self-hosted, protomodule]
+    environment:
+      name: ${{ inputs.environment }}
 
     steps:      
       - 
