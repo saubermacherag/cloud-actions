@@ -58,6 +58,7 @@ main () {
   docker push registry.heroku.com/$HEROKU_APP_NAME/$HEROKU_DYNO
 
   echo "🚀  Releasing new version"
+  export HEROKU_API_KEY
   heroku container:release -a $HEROKU_APP_NAME $HEROKU_DYNO
 
   echo ""
