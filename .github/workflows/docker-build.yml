@@ -51,13 +51,13 @@ jobs:
         name: Set outputs
         run: |
           source version.sh
-          echo "::set-output name=version_info::$VERSION"
-          echo "::set-output name=commit::$COMMIT"
-          echo "::set-output name=short::$SHORT"
-          echo "::set-output name=branch::$BRANCH"
-          echo "::set-output name=docker_tag::$DOCKER_TAG"
-          echo "::set-output name=latest_tag::$LATEST_TAG"
-          echo "::set-output name=buildtime::$TIMESTAMP"
+          echo "version_info=$VERSION" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "short=$SHORT" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "docker_tag=$DOCKER_TAG" >> $GITHUB_OUTPUT
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "buildtime=$TIMESTAMP" >> $GITHUB_OUTPUT
       -
         name: Upload changelog artifact
         uses: actions/upload-artifact@v3.1.0
