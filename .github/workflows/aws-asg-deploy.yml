@@ -104,10 +104,11 @@ jobs:
             echo "🏷  Set new version for $SYSTEM_NAME in runtime config on AWS Secrets Manager"
             JQ_PATH=".\"$(echo "$ENV_ID" | tr -cd 0-9a-zA-Z\-)\".\"$(echo "$SYSTEM_NAME" | tr -cd 0-9a-zA-Z\-)\".deploy.version"
             JQ_COMMAND="$JQ_PATH = \"${{ steps.version.outputs.deployment_tag }}\""
-            AWS_SECRET=$(echo "$CURRENT_SECRET" | (jq 2> /dev/null || echo "{}") | jq "$JQ_COMMAND")
-            aws secretsmanager update-secret --secret-id loop-runtime-versions --secret-string "$AWS_SECRET"
+            AWS_SECRET=$(echo "${AWS_SECRET:-$CURRENT_SECRET}" | (jq 2> /dev/null || echo "{}") | jq "$JQ_COMMAND")
             echo "::notice::⬆️ Updated runtime configuration for $SYSTEM_NAME from $(echo $CURRENT_SECRET | jq "$JQ_PATH") to version \"${{ steps.version.outputs.deployment_tag }}\""
           done
+          echo "::notice::🔒 Saving new configuration to $SECRET_NAME"
+          aws secretsmanager update-secret --secret-id "$SECRET_NAME" --secret-string "$AWS_SECRET"
           
   Refresh:
     runs-on: [self-hosted, protomodule]
@@ -118,7 +119,7 @@ jobs:
     steps:
       -
         name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v1-node16
         with:
           aws-access-key-id: ${{ secrets.aws_access_key_id }}
           aws-secret-access-key: ${{ secrets.aws_secret_access_key }}
