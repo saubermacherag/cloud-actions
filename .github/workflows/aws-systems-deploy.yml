@@ -46,13 +46,8 @@ jobs:
     environment:
       name: ${{ inputs.environment }}
     outputs:
-      version: ${{ steps.version.outputs.version }}
       commit: ${{ steps.version.outputs.commit }}
       short: ${{ steps.version.outputs.short }}
-      branch: ${{ steps.version.outputs.branch }}
-      docker_tag: ${{ steps.version.outputs.docker_tag }}
-      latest_tag: ${{ steps.version.outputs.latest_tag }}
-      deployment_tag: ${{ steps.version.outputs.deployment_tag }}
 
     steps:
       - 
@@ -124,6 +119,20 @@ jobs:
           echo "::notice::🔒 Saving new configuration to $SECRET_NAME"
           echo "::debug::$(echo "$AWS_SECRET" | jq .)"
           aws secretsmanager update-secret --secret-id "$SECRET_NAME" --secret-string "$(echo $AWS_SECRET | jq .)"
+      -
+        name: Summarize update
+        run: |
+          echo "### :rocket: ${{ inputs.application }} *${{ inputs.system }}* update" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "| | Deployment Info |" >> $GITHUB_STEP_SUMMARY
+          echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Current version | $(echo "${{ steps.version.outputs.version }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Hash of commit | ${{ steps.version.outputs.commit }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Short hash of commit | ${{ steps.version.outputs.short }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build originates from branch | $(echo "${{ steps.version.outputs.branch }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker image version tag | $(echo "${{ steps.version.outputs.docker_tag }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Latest tag | $(echo "${{ steps.version.outputs.latest_tag }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployment tag | $(echo "${{ steps.version.outputs.deployment_tag }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
           
   Refresh:
     runs-on: [self-hosted, protomodule]
@@ -162,18 +171,17 @@ jobs:
           done
           echo "instance_refresh_id=${INSTANCE_REFRESH_ID#"${INSTANCE_REFRESH_ID%%[!,]*}"}" >> $GITHUB_OUTPUT
       -
-        name: Summarize update
+        name: Summarize refresh
         run: |
-          echo "### :rocket: ${{ inputs.application }} *${{ inputs.system }}* deployment summary" >> $GITHUB_STEP_SUMMARY
+          ENV_ID='${{ secrets.environment_identifier }}'
+          ENV_ID=${ENV_ID:-unknown}
+          SYSTEMS='${{ inputs.system }}'
+          if [ "${{ secrets.environment_aio }}" == "yes" ]; then
+            SYSTEMS=aio
+          fi
+          echo "### :rocket: ${{ inputs.application }} $(echo "$ENV_ID" | sed 's/./& /g') *$SYSTEMS* ASG refresh" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
           echo "| | Deployment Info |" >> $GITHUB_STEP_SUMMARY
           echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
-          echo "| Current version | $(echo "${{ needs.Version.outputs.version }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
-          echo "| Hash of commit | ${{ needs.Version.outputs.commit }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Short hash of commit | ${{ needs.Version.outputs.short }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Build originates from branch | $(echo "${{ needs.Version.outputs.branch }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
-          echo "| Docker image version tag | $(echo "${{ needs.Version.outputs.docker_tag }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
-          echo "| Latest tag | $(echo "${{ needs.Version.outputs.latest_tag }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
-          echo "| Deployment tag | $(echo "${{ steps.version.outputs.deployment_tag }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
           echo "| Instance refresh ID | ${{ steps.refresh.outputs.instance_refresh_id }} |" >> $GITHUB_STEP_SUMMARY
           
