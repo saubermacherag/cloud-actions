@@ -1,0 +1,83 @@
+name: Start/restart AWS ASG
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Start / restart'
+        default: Development
+        type: string
+        required: true
+      application:
+        description: "Name of application"
+        required: true
+        type: string
+      system:
+        description: "System name of application"
+        required: true
+        type: string
+
+    secrets:
+      aws_access_key_id:
+        description: "AWS Access Key ID for Secrets Manager & ASG"
+        required: true
+      aws_secret_access_key:
+        description: "AWS Secret Access Key for Secrets Manager & ASG"
+        required: true
+      aws_region:
+        description: "AWS Region for Secrets Manager & ASG"
+        required: true
+      environment_identifier:
+        description: "Shortname/identifier of the selected environment"
+        required: true
+      environment_aio:
+        description: "Specify if environment is running on AIO instance"
+        required: false
+
+jobs:
+  Refresh:
+    runs-on: [self-hosted, protomodule]
+    environment:
+      name: ${{ inputs.environment }}
+
+    steps:
+      -
+        name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-access-key-id: ${{ secrets.aws_access_key_id }}
+          aws-secret-access-key: ${{ secrets.aws_secret_access_key }}
+          aws-region: ${{ secrets.aws_region }}
+      -
+        id: refresh
+        name: Trigger ASG refresh
+        run: |
+          ENV_ID='${{ secrets.environment_identifier }}'
+          ENV_ID=${ENV_ID:-unknown}
+          if [ "$ENV_ID" = "unknown" ]; then echo "::error::GitHub Environment secret ENVIRONMENT_IDENTIFIER is missing"; exit 1; fi
+
+          SYSTEMS='${{ inputs.system }}'
+          if [ "${{ secrets.environment_aio }}" == "yes" ]; then
+            SYSTEMS=aio
+          fi
+
+          echo "### :rocket: ${{ inputs.application }} *$(echo $ENV_ID | sed 's/./& /g' | xargs)* restart" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "| | Deployment Info |" >> $GITHUB_STEP_SUMMARY
+          echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
+          
+          for SYSTEM_NAME in ${SYSTEMS//,/ }
+          do
+            ASG_NAME="${{ inputs.application }}-$ENV_ID-$SYSTEM_NAME"
+            
+            echo "🔧  Reset EC2/ASG parameters for '$ASG_NAME'"
+            aws autoscaling update-auto-scaling-group --auto-scaling-group-name $ASG_NAME --max-size 2
+            aws autoscaling set-desired-capacity --auto-scaling-group-name $ASG_NAME --desired-capacity 1
+
+            echo "🚀  Initiate EC2/ASG instance refresh for ASG '$ASG_NAME'"
+            INSTANCE_REFRESH=$(aws autoscaling start-instance-refresh --auto-scaling-group-name "$ASG_NAME")
+            echo "::notice::🏗  Running instance refresh '$(echo "$INSTANCE_REFRESH" | jq -r ".InstanceRefreshId")' in background"
+            INSTANCE_REFRESH_ID="$(echo "$INSTANCE_REFRESH" | jq -r ".InstanceRefreshId")"
+
+            echo "| ASG refresh ID for $(echo $SYSTEM_NAME | sed 's/./& /g' | xargs) | $INSTANCE_REFRESH_ID |" >> $GITHUB_STEP_SUMMARY
+          done
