@@ -50,5 +50,5 @@ jobs:
           git config --global user.email "cloud@wastebox.biz"
           git config --global user.name "Cloud 3.0 CI/CD"
           git checkout ${{ steps.verify.outputs.release_branch }}
-          git merge origin/${{ inputs.target_branch }} -s recursive -Xtheirs --commit
+          git merge origin/${{ inputs.target_branch }} -s recursive -X ours --commit
           git push origin HEAD
