@@ -11,6 +11,11 @@ on:
         description: "Name of target branch for release"
         default: main
         type: string
+
+    secrets:
+      cloud_github_pat:
+        description: "GitHub PAT of CI user to access repos and trigger workflows"
+        required: true
         
 jobs:
   Prepare:
@@ -22,6 +27,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          token: ${{ secrets.cloud_github_pat }}
       -
         id: verify
         name: Verify release
@@ -36,19 +42,12 @@ jobs:
           echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
           echo "| Release branch | \`$RELEASE_BRANCH\` |" >> $GITHUB_STEP_SUMMARY
       -
-        name: Create release branch ${{ steps.verify.outputs.release_branch }}
+        name: Create release branch ${{ steps.verify.outputs.release_branch }} and merge changes from target ${{ inputs.target_branch }}
         run: |
           git config --global user.email "cloud@wastebox.biz"
           git config --global user.name "Cloud 3.0 CI/CD"
           git branch ${{ steps.verify.outputs.release_branch }}
           git checkout ${{ steps.verify.outputs.release_branch }}
-          git commit -m "🎉 [Cloud 3.0] Starting release candidate for version ${{ inputs.version }}" --allow-empty
-          git push -u origin ${{ steps.verify.outputs.release_branch }}
-      -
-        name: Merge ${{ inputs.target_branch }} into ${{ steps.verify.outputs.release_branch }} branch
-        run: |
-          git config --global user.email "cloud@wastebox.biz"
-          git config --global user.name "Cloud 3.0 CI/CD"
-          git checkout ${{ steps.verify.outputs.release_branch }}
           git merge origin/${{ inputs.target_branch }} -s recursive -X ours --commit
-          git push origin HEAD
+          git commit --allow-empty -m "🎉 Starting release candidate for version ${{ inputs.version }}" -m "Based of $(echo "${{ github.ref }}" | sed -e "s/^refs\/heads\///") (targeting ${{ inputs.target_branch }} - has been automatically merged into release branch ${{ steps.verify.outputs.release_branch }})"
+          git push -u origin ${{ steps.verify.outputs.release_branch }}
