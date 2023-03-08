@@ -1,0 +1,49 @@
+name: Create release candidate
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Version number (semver without prefix)"
+        required: true
+        type: string
+      target_branch:
+        description: "Name of target branch for release"
+        default: main
+        type: string
+        
+jobs:
+  Repo:
+    runs-on: [self-hosted, protomodule]
+
+    steps:
+      - 
+        name: Checkout source code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      -
+        id: verify
+        name: Verify release
+        run: |
+          if ! [[ "${{ inputs.version }}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))?$ ]]; then echo "::error::Given version does not conform to simple semantic version."; exit 1; fi
+          RELEASE_BRANCH="release/v${{ inputs.version }}"
+          if git show-branch remotes/origin/$RELEASE_BRANCH 2> /dev/null; then echo "::error::Release candidate for version ${{inputs.version}} already exists"; exit 1; fi
+          echo "release_branch=$RELEASE_BRANCH" >> $GITHUB_OUTPUT
+      -
+        name: Create release branch ${{ steps.verify.outputs.release_branch }}
+        run: |
+          git config --global user.email "cloud@wastebox.biz"
+          git config --global user.name "Cloud 3.0 CI/CD"
+          git branch ${{ steps.verify.outputs.release_branch }}
+          git checkout ${{ steps.verify.outputs.release_branch }}
+          git commit -m "🎉 [Cloud 3.0] Starting release candidate for version ${{ inputs.version }}" --allow-empty
+          git push -u origin ${{ steps.verify.outputs.release_branch }}
+      -
+        name: Merge ${{ inputs.target_branch }} into ${{ steps.verify.outputs.release_branch }} branch
+        run: |
+          git config --global user.email "cloud@wastebox.biz"
+          git config --global user.name "Cloud 3.0 CI/CD"
+          git checkout ${{ steps.verify.outputs.release_branch }}
+          git merge origin/${{ inputs.target_branch }} -s recursive -Xtheirs --commit
+          git push origin HEAD
