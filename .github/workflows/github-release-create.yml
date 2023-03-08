@@ -13,7 +13,7 @@ on:
         type: string
         
 jobs:
-  Repo:
+  Prepare:
     runs-on: [self-hosted, protomodule]
 
     steps:
@@ -30,6 +30,11 @@ jobs:
           RELEASE_BRANCH="release/v${{ inputs.version }}"
           if git show-branch remotes/origin/$RELEASE_BRANCH 2> /dev/null; then echo "::error::Release candidate for version ${{inputs.version}} already exists"; exit 1; fi
           echo "release_branch=$RELEASE_BRANCH" >> $GITHUB_OUTPUT
+          echo "### 🚧 Create release candidate for version ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "| | Build info |" >> $GITHUB_STEP_SUMMARY
+          echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release branch | \`$RELEASE_BRANCH\` |" >> $GITHUB_STEP_SUMMARY
       -
         name: Create release branch ${{ steps.verify.outputs.release_branch }}
         run: |

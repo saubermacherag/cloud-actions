@@ -17,7 +17,7 @@ on:
         type: string
         
 jobs:
-  Prepare:
+  Release:
     runs-on: [self-hosted, protomodule]
 
     steps:
@@ -74,3 +74,18 @@ jobs:
               repo: context.repo.repo,
               ref: "heads/${{ steps.version.outputs.release_branch }}",
             })
+      -
+        name: Summarize new release version
+        run: |
+          echo "### 🚀 Release new version ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "| | Build info |" >> $GITHUB_STEP_SUMMARY
+          echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release branch | \`${{ steps.version.outputs.release_branch }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Target branch | \`${{ inputs.target_branch }}\` |" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ inputs.development_branch }}" != "" ]]; then
+            echo "| Development branch | \`${{ inputs.development_branch }}\` |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Development branch | __no development branch specified__ |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "| Release version | *${{ steps.version.outputs.version }}* |" >> $GITHUB_STEP_SUMMARY

@@ -31,7 +31,7 @@ LOCAL_BRANCH=`git rev-parse --abbrev-ref HEAD`
 BRANCH=$(echo "${REMOTE_BRANCH:-$LOCAL_BRANCH}" | tr '[:upper:]' '[:lower:]' | tr \/ - | tr \. - | sed "s/[^0-9a-z\-]//g")
 
 VERSION=`git describe --tags --abbrev=0 2> /dev/null | sed -e 's/-[0-9]*//g' | sed 's/[^0-9.]*//g'`
-VERSION=${VERSION:-$BRANCH}
+export VERSION=${VERSION:-$BRANCH}
 
 if [[ "$AHEAD" != "0" ]]; then
   export VERSION="$BRANCH"

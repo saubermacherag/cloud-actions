@@ -71,7 +71,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
           echo "| | Build info |" >> $GITHUB_STEP_SUMMARY
           echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
-          echo "| Current version | `${{ steps.output.outputs.version_info }}` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Current version | \`${{ steps.output.outputs.version_info }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Hash of commit | ${{ steps.output.outputs.commit }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Short hash of commit | ${{ steps.output.outputs.short }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build originates from branch | ${{ steps.output.outputs.branch }} |" >> $GITHUB_STEP_SUMMARY
