@@ -28,7 +28,8 @@ TIMESTAMP=`date -u +"%Y-%m-%dT%H:%M:%SZ"`
 # Force branch name to be lowercase (convert / to -) and only allow numbers, characters and "-". Everything else is stripped.
 REMOTE_BRANCH=`git branch --remote --verbose --no-abbrev --contains | grep $(git rev-parse --verify HEAD) | sed -rne 's/^[^\/]*\/([^\ ]+).*$/\1/p' | tail -1`
 LOCAL_BRANCH=`git rev-parse --abbrev-ref HEAD`
-BRANCH=$(echo "${REMOTE_BRANCH:-$LOCAL_BRANCH}" | tr '[:upper:]' '[:lower:]' | tr \/ - | tr \. - | sed "s/[^0-9a-z\-]//g")
+BRANCH_NAME=${REMOTE_BRANCH:-$LOCAL_BRANCH}
+BRANCH=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | tr \/ - | tr \. - | sed "s/[^0-9a-z\-]//g")
 
 VERSION=`git describe --tags --abbrev=0 2> /dev/null | sed -e 's/-[0-9]*//g' | sed 's/[^0-9.]*//g'`
 export VERSION=${VERSION:-$BRANCH}
@@ -87,7 +88,7 @@ main () {
   echo -e "Commit is ahead of version tag:   $HL$AHEAD$NC"
   echo -e "Hash of commit:                   $HL$COMMIT$NC"
   echo -e "Short hash of commit:             $HL$SHORT$NC"
-  echo -e "Build originates from branch:     $HL$BRANCH$NC"
+  echo -e "Build originates from branch:     $HL$BRANCH_NAME$NC"
   echo -e "Docker image version tag:         $HL$TAG$NC"
   echo -e "Latest tag:                       $HL$LATEST_TAG$NC"
   echo -e "Build timestamp:                  $HL$TIMESTAMP$NC"
@@ -101,7 +102,7 @@ main () {
     echo "AHEAD = $AHEAD" >> $FILENAME
     echo "COMMIT = $COMMIT" >> $FILENAME
     echo "SHORT = $SHORT" >> $FILENAME
-    echo "BRANCH = $BRANCH" >> $FILENAME
+    echo "BRANCH = $BRANCH_NAME" >> $FILENAME
     echo "DOCKER_TAG = $TAG" >> $FILENAME
     echo "LATEST_TAG = $LATEST_TAG" >> $FILENAME
     echo "TIMESTAMP = $TIMESTAMP" >> $FILENAME
@@ -110,7 +111,7 @@ main () {
   if [ "$OUTPUT_JSON" ]; then
     FILENAME="${@: -1}.json"
     echo "🐟  Writing <$FILENAME> as JSON"
-    echo "{\"version\":\"$VERSION\",\"ahead\":\"$AHEAD\",\"commit\":\"$COMMIT\",\"short\":\"$SHORT\",\"branch\":\"$BRANCH\",\"docker_tag\":\"$TAG\",\"latest_tag\":\"$LATEST_TAG\",\"timestamp\":\"$TIMESTAMP\"}" > $FILENAME
+    echo "{\"version\":\"$VERSION\",\"ahead\":\"$AHEAD\",\"commit\":\"$COMMIT\",\"short\":\"$SHORT\",\"branch\":\"$BRANCH_NAME\",\"docker_tag\":\"$TAG\",\"latest_tag\":\"$LATEST_TAG\",\"timestamp\":\"$TIMESTAMP\"}" > $FILENAME
   fi
 
   if [ "$OUTPUT_SH" ]; then
@@ -121,7 +122,7 @@ main () {
     echo "export AHEAD=\"$AHEAD\"" >> $FILENAME
     echo "export COMMIT=\"$COMMIT\"" >> $FILENAME
     echo "export SHORT=\"$SHORT\"" >> $FILENAME
-    echo "export BRANCH=\"$BRANCH\"" >> $FILENAME
+    echo "export BRANCH=\"$BRANCH_NAME\"" >> $FILENAME
     echo "export DOCKER_TAG=\"$TAG\"" >> $FILENAME
     echo "export LATEST_TAG=\"$LATEST_TAG\"" >> $FILENAME
     echo "export TIMESTAMP=\"$TIMESTAMP\"" >> $FILENAME
