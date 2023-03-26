@@ -12,8 +12,12 @@ on:
         description: "Name of application"
         required: true
         type: string
-      system:
-        description: "System name of application"
+      systems:
+        description: "Comma separated list of system names of application"
+        required: true
+        type: string
+      environment_identifier:
+        description: "Shortname/identifier of the selected environment"
         required: true
         type: string
 
@@ -27,12 +31,6 @@ on:
       aws_region:
         description: "AWS Region for Secrets Manager & ASG"
         required: true
-      environment_identifier:
-        description: "Shortname/identifier of the selected environment"
-        required: true
-      environment_aio:
-        description: "Specify if environment is running on AIO instance"
-        required: false
 
 jobs:
   Refresh:
@@ -52,16 +50,13 @@ jobs:
         id: refresh
         name: Trigger ASG refresh
         run: |
-          ENV_ID='${{ secrets.environment_identifier }}'
+          ENV_ID='${{ inputs.environment_identifier }}'
           ENV_ID=${ENV_ID:-unknown}
-          if [ "$ENV_ID" = "unknown" ]; then echo "::error::GitHub Environment secret ENVIRONMENT_IDENTIFIER is missing"; exit 1; fi
+          if [ "$ENV_ID" = "unknown" ]; then echo "::error::GitHub environment variable ENVIRONMENT_IDENTIFIER is missing"; exit 1; fi
 
-          SYSTEMS='${{ inputs.system }}'
-          if [ "${{ secrets.environment_aio }}" == "yes" ]; then
-            SYSTEMS=aio
-          fi
+          SYSTEMS='${{ inputs.systems }}'
 
-          echo "### :rocket: ${{ inputs.application }} *$(echo $ENV_ID | sed 's/./& /g' | xargs)* restart" >> $GITHUB_STEP_SUMMARY
+          echo "### :rocket: ${{ inputs.application }} *$ENV_ID* restart" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
           echo "| | Deployment Info |" >> $GITHUB_STEP_SUMMARY
           echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
@@ -79,5 +74,5 @@ jobs:
             echo "::notice::🏗  Running instance refresh '$(echo "$INSTANCE_REFRESH" | jq -r ".InstanceRefreshId")' in background"
             INSTANCE_REFRESH_ID="$(echo "$INSTANCE_REFRESH" | jq -r ".InstanceRefreshId")"
 
-            echo "| ASG refresh ID for $(echo $SYSTEM_NAME | sed 's/./& /g' | xargs) | $INSTANCE_REFRESH_ID |" >> $GITHUB_STEP_SUMMARY
+            echo "| ASG refresh ID for $SYSTEM_NAME | $INSTANCE_REFRESH_ID |" >> $GITHUB_STEP_SUMMARY
           done
