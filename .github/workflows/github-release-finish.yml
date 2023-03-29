@@ -62,16 +62,16 @@ jobs:
             git commit --allow-empty -m "✨ Merged changes from release v${{ steps.version.outputs.version }} into ${{ inputs.development_branch }}"
             git push origin HEAD
           fi
-      -
-        name: Delete merged branch
-        uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.git.deleteRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: "heads/${{ steps.version.outputs.release_branch }}",
-            })
+      # -
+      #   name: Delete merged branch
+      #   uses: actions/github-script@v6
+      #   with:
+      #     script: |
+      #       github.rest.git.deleteRef({
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         ref: "heads/${{ steps.version.outputs.release_branch }}",
+      #       })
       -
         name: Summarize new release version
         run: |

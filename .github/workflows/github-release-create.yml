@@ -49,5 +49,5 @@ jobs:
           git branch ${{ steps.verify.outputs.release_branch }}
           git checkout ${{ steps.verify.outputs.release_branch }}
           git merge origin/${{ inputs.target_branch }} -s recursive -X ours --commit
-          git commit --allow-empty -m "🎉 Starting release candidate for version ${{ inputs.version }}" -m "Based of $(echo "${{ github.ref }}" | sed -e "s/^refs\/heads\///") (targeting ${{ inputs.target_branch }} - has been automatically merged into release branch ${{ steps.verify.outputs.release_branch }})"
+          git commit --allow-empty -m "🎉 Starting release candidate for version ${{ inputs.version }}" -m "Based of ${{ github.ref_name }} (targeting ${{ inputs.target_branch }} - has been automatically merged into release branch ${{ steps.verify.outputs.release_branch }})"
           git push -u origin ${{ steps.verify.outputs.release_branch }}
