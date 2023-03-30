@@ -55,23 +55,6 @@ jobs:
           git push origin HEAD --tags
 
           echo "release_commit=$(git rev-parse --verify HEAD)" >> $GITHUB_OUTPUT
-
-          if [[ "${{ inputs.development_branch }}" != "" ]]; then
-            git checkout ${{ inputs.development_branch }}
-            git merge origin/${{ inputs.target_branch }} --commit
-            git commit --allow-empty -m "✨ Merged changes from release v${{ steps.version.outputs.version }} into ${{ inputs.development_branch }}"
-            git push origin HEAD
-          fi
-      # -
-      #   name: Delete merged branch
-      #   uses: actions/github-script@v6
-      #   with:
-      #     script: |
-      #       github.rest.git.deleteRef({
-      #         owner: context.repo.owner,
-      #         repo: context.repo.repo,
-      #         ref: "heads/${{ steps.version.outputs.release_branch }}",
-      #       })
       -
         name: Summarize new release version
         run: |
@@ -81,10 +64,5 @@ jobs:
           echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
           echo "| Release branch | \`${{ steps.version.outputs.release_branch }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Target branch | \`${{ inputs.target_branch }}\` |" >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ inputs.development_branch }}" != "" ]]; then
-            echo "| Development branch | \`${{ inputs.development_branch }}\` |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Development branch | __no development branch specified__ |" >> $GITHUB_STEP_SUMMARY
-          fi
           echo "| Release commit | \`${{ steps.merge.outputs.release_commit }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Release version | *${{ steps.version.outputs.version }}* |" >> $GITHUB_STEP_SUMMARY
