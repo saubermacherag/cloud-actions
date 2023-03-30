@@ -48,6 +48,6 @@ jobs:
           git config --global user.name "Cloud 3.0 CI/CD"
           git branch ${{ steps.verify.outputs.release_branch }}
           git checkout ${{ steps.verify.outputs.release_branch }}
-          git merge origin/${{ inputs.target_branch }} -s recursive -X ours --commit
+          git merge origin/${{ inputs.target_branch }} --commit
           git commit --allow-empty -m "🎉 Starting release candidate for version ${{ inputs.version }}" -m "Based of ${{ github.ref_name }} (targeting ${{ inputs.target_branch }} - has been automatically merged into release branch ${{ steps.verify.outputs.release_branch }})"
           git push -u origin ${{ steps.verify.outputs.release_branch }}

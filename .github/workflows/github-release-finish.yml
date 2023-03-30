@@ -49,7 +49,7 @@ jobs:
           git config --global user.name "Cloud 3.0 CI/CD"
 
           git checkout ${{ inputs.target_branch }}
-          git merge origin/${{ steps.version.outputs.release_branch }} -s recursive -Xtheirs --commit
+          git merge origin/${{ steps.version.outputs.release_branch }} --commit
           git commit --allow-empty -m "🚀 Release v${{ steps.version.outputs.version }}"
           git tag v${{ steps.version.outputs.version }} -a -m "Release v${{ steps.version.outputs.version }} (`date`)"
           git push origin HEAD --tags
@@ -58,7 +58,7 @@ jobs:
 
           if [[ "${{ inputs.development_branch }}" != "" ]]; then
             git checkout ${{ inputs.development_branch }}
-            git merge origin/${{ inputs.target_branch }} -s recursive -Xtheirs --commit
+            git merge origin/${{ inputs.target_branch }} --commit
             git commit --allow-empty -m "✨ Merged changes from release v${{ steps.version.outputs.version }} into ${{ inputs.development_branch }}"
             git push origin HEAD
           fi
