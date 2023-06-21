@@ -17,6 +17,10 @@ on:
         description: "Name of the project as defined in sentry"
         type: string
         default: ""
+      build_path:
+        description: "Sub-directory in the repository containing the build context (i.e. where the Dockerfile is located). Defaults to '.'"
+        type: string
+        default: "."
 
     secrets:
       registry_username:
@@ -50,6 +54,7 @@ jobs:
       -
         name: Build and push to registry
         run: |
+          cd ${{ inputs.build_path }}
           DOCKERFILE=${{ inputs.dockerfile }}
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/saubermacherag/cloud-actions/main/helpers/generate-changelog.sh)" -- -x -n 100
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/saubermacherag/cloud-actions/main/helpers/docker-build.sh)" -- -a "--build-arg SENTRY_PROJECT=${{ inputs.sentry_project_name }} --build-arg SENTRY_TOKEN=${{ secrets.sentry_artifact_upload_token }}" -f ${DOCKERFILE:-Dockerfile} ${{ inputs.registry }}/${{ inputs.repository }}
@@ -57,6 +62,7 @@ jobs:
         id: output
         name: Set outputs
         run: |
+          cd ${{ inputs.build_path }}
           source version.sh
           echo "version_info=$VERSION" >> $GITHUB_OUTPUT
           echo "commit=$COMMIT" >> $GITHUB_OUTPUT
@@ -70,7 +76,7 @@ jobs:
         uses: actions/upload-artifact@v3.1.0
         with:
           name: Changelog
-          path: ${{ github.workspace }}/changelog.html
+          path: ${{ github.workspace }}/${{ inputs.build_path }}/changelog.html
       -
         name: Summarize update
         run: |
