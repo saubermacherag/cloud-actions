@@ -1,0 +1,70 @@
+name: Execute tests using NPM / Yarn
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Node version to use for test execution"
+        type: string
+        default: "20-slim"
+      parameters:
+        description: "Parameters to append to test command"
+        type: string
+        default: ""
+
+jobs:
+  NPM:
+    runs-on: [self-hosted, protomodule]
+
+    steps:
+      -
+        name: Checkout source code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      -
+        name: Run tests
+        run: |
+          if [ ! -f package.json ]; then
+            echo -e "🛑  STOPPING BUILD → No 'package.json' is found in project root.";
+            exit 1
+          fi
+          if [[ $(jq '.scripts["test"]' < package.json;) != null ]]; then
+            # Test script exists
+            rm -rf node_modules
+
+            if test -f "yarn.lock"; then
+              # Using yarn
+              echo -e "🕵️‍♂️  Detected YARN setup. Running 'yarn test'.";
+              docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app node:${{ inputs.version }} \
+                yarn install && yarn test -- ${{ inputs.parameters }} | tee report.txt
+            else
+              # Using NPM
+              echo -e "🕵️‍♂️  Detected NPM setup. Running 'npm test'.";
+              docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app node:${{ inputs.version }} \
+                npm install && npm test -- ${{ inputs.parameters }} | tee report.txt
+            fi
+          else
+            echo -e "⏭️  Skipping tests (no test script found in package.json)";
+          fi
+      -
+        id: output
+        name: Set outputs
+        run: |
+          echo "version_info='node:${{ inputs.version }}'" >> $GITHUB_OUTPUT
+          echo "parameters='${{ inputs.parameters }}'" >> $GITHUB_OUTPUT
+      -
+        name: Upload changelog artifact
+        uses: actions/upload-artifact@v3.1.0
+        with:
+          name: Test report
+          path: ${{ github.workspace }}/report.txt
+      -
+        name: Summarize update
+        run: |
+          echo "### 🧪 Test summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "| | Info |" >> $GITHUB_STEP_SUMMARY
+          echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image version | \`${{ steps.output.outputs.version_info }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test parameters | \`${{ steps.output.outputs.parameters }}\` |" >> $GITHUB_STEP_SUMMARY
