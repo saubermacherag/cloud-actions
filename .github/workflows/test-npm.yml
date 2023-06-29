@@ -37,12 +37,12 @@ jobs:
               # Using yarn
               echo -e "🕵️‍♂️  Detected YARN setup. Running 'yarn test'.";
               docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app node:${{ inputs.version }} \
-                yarn install && yarn test -- ${{ inputs.parameters }} | tee report.txt
+                /bin/bash -c "yarn install && yarn test -- ${{ inputs.parameters }} | tee report.txt"
             else
               # Using NPM
               echo -e "🕵️‍♂️  Detected NPM setup. Running 'npm test'.";
               docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app node:${{ inputs.version }} \
-                npm install && npm test -- ${{ inputs.parameters }} | tee report.txt
+                /bin/bash -c "npm install && npm test -- ${{ inputs.parameters }} | tee report.txt"
             fi
           else
             echo -e "⏭️  Skipping tests (no test script found in package.json)";
