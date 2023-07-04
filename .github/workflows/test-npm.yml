@@ -40,8 +40,9 @@ jobs:
                 /bin/bash -c "yarn install && yarn test -- ${{ inputs.parameters }} | tee report.txt"
             else
               # Using NPM
+              # https://stackoverflow.com/questions/44633419/no-access-permission-error-with-npm-global-install-on-docker-image#45505787
               echo -e "🕵️‍♂️  Detected NPM setup. Running 'npm test'.";
-              docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app node:${{ inputs.version }} \
+              docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app -u node node:${{ inputs.version }} \
                 /bin/bash -c "npm install && npm test -- ${{ inputs.parameters }} | tee report.txt"
             fi
           else
