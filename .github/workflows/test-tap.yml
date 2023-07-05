@@ -1,0 +1,71 @@
+name: Execute tests using NPM / Yarn with TAP
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Node version to use for test execution"
+        type: string
+        default: "20-slim"
+      parameters:
+        description: "Parameters to append to test command"
+        type: string
+        default: ""
+
+jobs:
+  NPM:
+    runs-on: [self-hosted, protomodule]
+
+    steps:
+      -
+        name: Checkout source code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      -
+        name: Run tests
+        run: |
+          echo -e "📦  Install dependencies ...";
+          npm install -g tap-markdown@1.0.2 tap-json
+          if [ ! -f package.json ]; then
+            echo -e "🛑  STOPPING BUILD → No 'package.json' is found in project root.";
+            exit 1
+          fi
+          if [[ $(jq '.scripts["test"]' < package.json;) != null ]]; then
+            # Test script exists
+            rm -rf node_modules
+
+            if test -f "yarn.lock"; then
+              # Using yarn
+              echo -e "🕵️‍♂️  Detected YARN setup. Running 'yarn test' with TAP enabled.";
+              docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app node:${{ inputs.version }} \
+                /bin/bash -c "yarn install && yarn test -- --tap ${{ inputs.parameters }} | tee report.txt"
+              cat report.txt | tap-json > report.json
+              cat report.txt | tap-markdown >> $GITHUB_STEP_SUMMARY
+            else
+              # Using NPM
+              # https://stackoverflow.com/questions/44633419/no-access-permission-error-with-npm-global-install-on-docker-image#45505787
+              echo -e "🕵️‍♂️  Detected NPM setup. Running 'npm test' with TAP enabled.";
+              docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app -u node node:${{ inputs.version }} \
+                /bin/bash -c "npm install && npm test -- --tap ${{ inputs.parameters }} | tee report.txt"
+              cat report.txt | tap-json > report.json
+              cat report.txt | tap-markdown >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo -e "⏭️  Skipping tests (no test script found in package.json)";
+          fi
+      -
+        name: Upload changelog artifact
+        uses: actions/upload-artifact@v3.1.0
+        with:
+          name: Test report
+          path: ${{ github.workspace }}/report.txt
+      -
+        name: Summarize update
+        run: |
+          echo "### 🧪 Test summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "| | Info |" >> $GITHUB_STEP_SUMMARY
+          echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image version | \`node:${{ inputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test parameters | \`${{ inputs.parameters }}\` |" >> $GITHUB_STEP_SUMMARY
