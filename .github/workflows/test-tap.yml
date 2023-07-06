@@ -44,7 +44,7 @@ jobs:
               # https://stackoverflow.com/questions/44633419/no-access-permission-error-with-npm-global-install-on-docker-image#45505787
               echo -e "🕵️‍♂️  Detected NPM setup. Running 'npm test' with TAP enabled.";
               docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app -u node node:${{ inputs.version }} \
-                /bin/bash -c "npm install -g npm && npm install && npm test --silent -- --tap ${{ inputs.parameters }} | tee report.tap"
+                /bin/bash -c "npm install && npm test --silent -- --tap ${{ inputs.parameters }} | tee report.tap"
               cat report.tap | npx tap-markdown@1.0.1 >> $GITHUB_STEP_SUMMARY
             fi
           else
