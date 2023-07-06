@@ -23,6 +23,15 @@ jobs:
         with:
           fetch-depth: 0
       -
+        name: Execution information
+        run: |
+          echo "# 🧪 Test execution information" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "| | Info |" >> $GITHUB_STEP_SUMMARY
+          echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image version | \`node:${{ inputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test parameters | \` ${{ inputs.parameters }} \` |" >> $GITHUB_STEP_SUMMARY
+      -
         name: Run tests
         run: |
           if [ ! -f package.json ]; then
@@ -56,12 +65,3 @@ jobs:
         with:
           name: Test report
           path: ${{ github.workspace }}/report.tap
-      -
-        name: Summarize update
-        run: |
-          echo "### 🧪 Test summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
-          echo "| | Info |" >> $GITHUB_STEP_SUMMARY
-          echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
-          echo "| Image version | \`node:${{ inputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Test parameters | \`${{ inputs.parameters }}\` |" >> $GITHUB_STEP_SUMMARY
