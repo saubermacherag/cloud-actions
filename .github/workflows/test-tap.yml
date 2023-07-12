@@ -31,6 +31,7 @@ jobs:
           echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
           echo "| Image version | \`node:${{ inputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Test parameters | \` ${{ inputs.parameters }} \` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Ref | \` ${{ github.ref_name }} \` |" >> $GITHUB_STEP_SUMMARY
       -
         name: Run tests
         run: |
@@ -61,8 +62,7 @@ jobs:
         name: Test Summary
         uses: test-summary/action@v2
         with:
-          paths: |
-            report.tap
+          paths: report.tap
           output: report.md
           show: "all, pass, skip, fail"
         if: always()
@@ -71,5 +71,5 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: Test report
-          path: report.md
+          path: report.*
         if: always()
