@@ -76,6 +76,7 @@ jobs:
           files: |
             report.xml
       - name: Test Conclusion
+        if: always()
         run: |
           echo "## 🚦 Test conclusion: ${{ fromJSON( steps.results.outputs.json ).conclusion }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
