@@ -91,7 +91,7 @@ jobs:
           echo "| ${{ fromJSON( steps.results.outputs.json ).stats.files }} files |  | ${{ fromJSON( steps.results.outputs.json ).formatted.stats_with_delta.files.delta }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
 
-          echo "**" >> $GITHUB_STEP_SUMMARY
+          echo "**${{ fromJSON( steps.results.outputs.json ).stats.tests_fail }} fail, ${{ fromJSON( steps.results.outputs.json ).stats.tests_skip }} skipped, ${{ fromJSON( steps.results.outputs.json ).stats.tests_succ }} pass**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
           echo "| ${{ fromJSON( steps.results.outputs.json ).stats.files }} files ${{ fromJSON( steps.results.outputs.json ).formatted.stats_with_delta.files.delta }} |  |  |  | ${{ fromJSON( steps.results.outputs.json ).stats.errors }} errors |" >> $GITHUB_STEP_SUMMARY
           echo "| --: | --: | --: | --: | --: |" >> $GITHUB_STEP_SUMMARY
