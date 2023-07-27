@@ -73,6 +73,7 @@ jobs:
         id: results
         if: always()
         with:
+          job_summary: false
           files: |
             report.xml
       - name: Test Conclusion
