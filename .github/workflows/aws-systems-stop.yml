@@ -60,7 +60,7 @@ jobs:
             SYSTEMS=aio
           fi
 
-          echo "### :o: Stopping ${{ inputs.application }} *$(echo $ENV_ID | sed 's/./& /g' | xargs)*" >> $GITHUB_STEP_SUMMARY
+          echo "### :o: Stopping ${{ inputs.application }} *$(echo $ENV_ID | sed 's/./& /g' | xargs)*" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
           echo "| | Reconfiguration Info |" >> $GITHUB_STEP_SUMMARY
           echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
@@ -72,5 +72,5 @@ jobs:
             echo "🔧  Reconfigure EC2/ASG parameters for '$ASG_NAME'"
             aws autoscaling set-desired-capacity --auto-scaling-group-name $ASG_NAME --desired-capacity 0
 
-            echo "| Desired capacity for $(echo $SYSTEM_NAME | sed 's/./& /g' | xargs) | 0 |" >> $GITHUB_STEP_SUMMARY
+            echo "| Desired capacity for $(echo $SYSTEM_NAME | sed 's/./& /g' | xargs) | 0 |" >> $GITHUB_STEP_SUMMARY
           done
