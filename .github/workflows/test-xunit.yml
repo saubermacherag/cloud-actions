@@ -1,0 +1,92 @@
+name: Execute tests using NPM / Yarn converting to XUnit
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Node version to use for test execution"
+        type: string
+        default: "20-slim"
+      parameters:
+        description: "Parameters to append to test command"
+        type: string
+        default: ""
+
+jobs:
+  NPM:
+    runs-on: [self-hosted, protomodule]
+
+    steps:
+      -
+        name: Checkout source code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      -
+        name: Execution information
+        run: |
+          echo "# 🧪 Test execution information" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "| | Info |" >> $GITHUB_STEP_SUMMARY
+          echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image version | \`node:${{ inputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test parameters | \` ${{ inputs.parameters }} \` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Ref | \` ${{ github.ref_name }} \` |" >> $GITHUB_STEP_SUMMARY
+      -
+        name: Run tests
+        run: |
+          if [ ! -f package.json ]; then
+            echo -e "🛑  STOPPING BUILD → No 'package.json' is found in project root.";
+            exit 1
+          fi
+          if [[ $(jq '.scripts["test"]' < package.json;) != null ]]; then
+            # Test script exists
+            rm -rf node_modules
+
+            if test -f "yarn.lock"; then
+              # Using yarn
+              echo -e "🕵️‍♂️  Detected YARN setup. Running 'yarn test' with TAP enabled.";
+              docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app node:${{ inputs.version }} \
+                /bin/bash -c "yarn install && yarn -s test --tap ${{ inputs.parameters }} | tee report.tap"
+            else
+              # Using NPM
+              # https://stackoverflow.com/questions/44633419/no-access-permission-error-with-npm-global-install-on-docker-image#45505787
+              echo -e "🕵️‍♂️  Detected NPM setup. Running 'npm test' with TAP enabled.";
+              docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app -u node node:${{ inputs.version }} \
+                /bin/bash -c "npm install && npm test --silent -- --tap ${{ inputs.parameters }} | tee report.tap"
+            fi
+            echo -e "📄  Convert test results from TAP to XUnit";
+            cat report.tap | npx tap-xunit > report.xml
+          else
+            echo -e "⏭️  Skipping tests (no test script found in package.json)";
+          fi
+      - 
+        name: Upload test artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: Test report
+          path: report.*
+        if: always()
+      - 
+        name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        id: results
+        if: always()
+        with:
+          job_summary: false
+          files: |
+            report.xml
+      - name: Test Conclusion
+        if: always()
+        run: |
+          echo "## 🚦 Test conclusion: ${{ fromJSON( steps.results.outputs.json ).conclusion }}" >> $GITHUB_STEP_SUMMARY
+          echo "**${{ fromJSON( steps.results.outputs.json ).stats.tests_fail }} fail, ${{ fromJSON( steps.results.outputs.json ).stats.tests_skip }} skipped, ${{ fromJSON( steps.results.outputs.json ).stats.tests_succ }} pass**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "| ${{ fromJSON( steps.results.outputs.json ).stats.files }} files ${{ fromJSON( steps.results.outputs.json ).formatted.stats_with_delta.files.delta }} |  |  |  | ${{ fromJSON( steps.results.outputs.json ).stats.errors }} errors |" >> $GITHUB_STEP_SUMMARY
+          echo "| --: | --: | --: | --: | --: |" >> $GITHUB_STEP_SUMMARY
+          echo "| ${{ fromJSON( steps.results.outputs.json ).stats.tests }} tests ${{ fromJSON( steps.results.outputs.json ).formatted.stats_with_delta.tests.delta }} | ${{ fromJSON( steps.results.outputs.json ).stats.tests_succ }} <img src="https://github.githubassets.com/images/icons/emoji/unicode/2714.png" height="20"/> ${{ fromJSON( steps.results.outputs.json ).formatted.stats_with_delta.tests_succ.delta }} | ${{ fromJSON( steps.results.outputs.json ).stats.tests_skip }} <img src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a4.png" height="20"/> ${{ fromJSON( steps.results.outputs.json ).formatted.stats_with_delta.tests_skip.delta }} | ${{ fromJSON( steps.results.outputs.json ).stats.tests_fail }} <img src="https://github.githubassets.com/images/icons/emoji/unicode/274c.png" height="20"/> ${{ fromJSON( steps.results.outputs.json ).formatted.stats_with_delta.tests_fail.delta }} | ${{ fromJSON( steps.results.outputs.json ).stats.tests_error }} <img src="https://github.githubassets.com/images/icons/emoji/unicode/1f525.png" height="20"/> ${{ fromJSON( steps.results.outputs.json ).formatted.stats_with_delta.tests_error.delta }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ${{ fromJSON( steps.results.outputs.json ).stats.runs }} runs ${{ fromJSON( steps.results.outputs.json ).formatted.stats_with_delta.runs.delta }} | ${{ fromJSON( steps.results.outputs.json ).stats.runs_succ }} <img src="https://github.githubassets.com/images/icons/emoji/unicode/2714.png" height="20"/> ${{ fromJSON( steps.results.outputs.json ).formatted.stats_with_delta.runs_succ.delta }} | ${{ fromJSON( steps.results.outputs.json ).stats.runs_skip }} <img src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a4.png" height="20"/> ${{ fromJSON( steps.results.outputs.json ).formatted.stats_with_delta.runs_skip.delta }} | ${{ fromJSON( steps.results.outputs.json ).stats.runs_fail }} <img src="https://github.githubassets.com/images/icons/emoji/unicode/274c.png" height="20"/> ${{ fromJSON( steps.results.outputs.json ).formatted.stats_with_delta.runs_fail.delta }} | ${{ fromJSON( steps.results.outputs.json ).stats.runs_error }} <img src="https://github.githubassets.com/images/icons/emoji/unicode/1f525.png" height="20"/> ${{ fromJSON( steps.results.outputs.json ).formatted.stats_with_delta.runs_error.delta }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ${{ fromJSON( steps.results.outputs.json ).stats.suites }} suites ${{ fromJSON( steps.results.outputs.json ).formatted.stats_with_delta.suites.delta }} |  |  |  |  |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "For more details on these errors and failures see [this check](${{ fromJSON( steps.results.outputs.json ).check_url }})." >> $GITHUB_STEP_SUMMARY
+          echo "<sub>Results for commit `${{ fromJSON( steps.results.outputs.json ).stats.commit }}`. ± Trend comparison against ${{ fromJSON( steps.results.outputs.json ).stats_with_delta.reference_type }} commit `${{ fromJSON( steps.results.outputs.json ).stats_with_delta.reference_commit }}`.</sub>" >> $GITHUB_STEP_SUMMARY
