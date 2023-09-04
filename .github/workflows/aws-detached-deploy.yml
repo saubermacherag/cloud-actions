@@ -1,0 +1,185 @@
+name: Deploy single detached system on AWS ASG
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Deploy to'
+        default: Development
+        type: string
+        required: true
+      registry:
+        description: "URL of container registry"
+        type: string
+      repository:
+        description: "Path/name of container repository (without registry URL)"
+        type: string
+      application:
+        description: "Name of application"
+        required: true
+        type: string
+      system:
+        description: "System name of application"
+        required: true
+        type: string
+
+    secrets:
+      aws_access_key_id:
+        description: "AWS Access Key ID for Secrets Manager & ASG"
+        required: true
+      aws_secret_access_key:
+        description: "AWS Secret Access Key for Secrets Manager & ASG"
+        required: true
+      aws_region:
+        description: "AWS Region for Secrets Manager & ASG"
+        required: true
+      environment_identifier:
+        description: "Shortname/identifier of the selected environment"
+        required: true
+      environment_aio:
+        description: "Specify if environment is running on AIO instance (string: yes/no)"
+        required: false
+
+jobs:
+  Version:
+    runs-on: [self-hosted, protomodule]
+    environment:
+      name: ${{ inputs.environment }}
+    outputs:
+      commit: ${{ steps.version.outputs.commit }}
+      short: ${{ steps.version.outputs.short }}
+
+    steps:
+      - 
+        name: Checkout source code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      -
+        id: version
+        name: Derive version / tag
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/saubermacherag/cloud-actions/main/helpers/generate-version.sh)" -- -j -s version
+          source version.sh
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "short=$SHORT" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "docker_tag=$DOCKER_TAG" >> $GITHUB_OUTPUT
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "deployment_tag=${DOCKER_TAG:-${LATEST_TAG:-main-latest}}" >> $GITHUB_OUTPUT
+          ENV_ID='${{ secrets.environment_identifier }}'
+          ENV_ID=${ENV_ID:-unknown}
+          if [ "$ENV_ID" = "unknown" ]; then echo "::error::GitHub Environment secret ENVIRONMENT_IDENTIFIER is missing"; exit 1; fi
+      -
+        name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-access-key-id: ${{ secrets.aws_access_key_id }}
+          aws-secret-access-key: ${{ secrets.aws_secret_access_key }}
+          aws-region: ${{ secrets.aws_region }}
+      -
+        name: Validate image availability
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
+          echo "ℹ️  Check images on AWS Account $(echo "$ACCOUNT_ID" | sed 's/./& /g')"
+          ECR_REPO='${{ inputs.repository }}'
+          if [[ "$(aws ecr describe-images --registry-id $ACCOUNT_ID --repository-name "$ECR_REPO" --image-ids imageTag="${{ steps.version.outputs.deployment_tag }}" | jq '.imageDetails | length')" == "1" ]]; then
+            echo "🐳  $ECR_REPO:${{ steps.version.outputs.deployment_tag }} exists";
+          else
+            echo "::error::❌  Docker image for $ECR_REPO:$(echo "${{ steps.version.outputs.deployment_tag }}" | sed 's/./& /g') not found";
+            exit 1
+          fi
+          echo "::notice::✅  Docker images for system is available in version $(echo "${{ steps.version.outputs.deployment_tag }}" | sed 's/./& /g')"
+      -
+        name: Set current version in runtime config on AWS Secrets Manager
+        run: |
+          ENV_ID='${{ secrets.environment_identifier }}'
+          ENV_ID=${ENV_ID:-unknown}
+          if [ "$ENV_ID" = "unknown" ]; then echo "::error::GitHub Environment secret ENVIRONMENT_IDENTIFIER is missing"; exit 1; fi
+          
+          echo "⬇️  Retrieve runtime config from AWS Secrets Manager"
+          SECRET_NAME="${{ inputs.application }}-runtime-versions"
+          CURRENT_SECRET=$(aws secretsmanager get-secret-value --secret-id "$SECRET_NAME" --query SecretString --output text)
+          AWS_SECRET=
+          SYSTEM_NAME='${{ inputs.system }}'
+
+          echo "🏷  Set new version for $SYSTEM_NAME in runtime config on AWS Secrets Manager"
+          JQ_PATH=".\"$(echo "$ENV_ID" | tr -cd 0-9a-zA-Z\-)\".\"$(echo "$SYSTEM_NAME" | tr -cd 0-9a-zA-Z\- | cut -d'-' -f 1)\".deploy.version"
+          JQ_COMMAND="$JQ_PATH = \"${{ steps.version.outputs.deployment_tag }}\""
+          AWS_SECRET=$(echo "${AWS_SECRET:-$CURRENT_SECRET}" | (jq . 2> /dev/null || echo "{}") | jq "$JQ_COMMAND")
+          echo "::notice::⬆️ Updated runtime configuration for $SYSTEM_NAME from $(echo $CURRENT_SECRET | jq "$JQ_PATH" | sed 's/./& /g') to version \"$(echo "${{ steps.version.outputs.deployment_tag }}" | sed 's/./& /g')\""
+
+          echo "::notice::🔒 Saving new configuration to $SECRET_NAME"
+          echo "::debug::$(echo "$AWS_SECRET" | jq .)"
+          # aws secretsmanager update-secret --secret-id "$SECRET_NAME" --secret-string "$(echo $AWS_SECRET | jq .)"
+      -
+        name: Summarize update
+        run: |
+          echo "### :rocket: ${{ inputs.application }} *${{ secrets.systems }}* update" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "| | Deployment Info |" >> $GITHUB_STEP_SUMMARY
+          echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Current version | $(echo "${{ steps.version.outputs.version }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Hash of commit | ${{ steps.version.outputs.commit }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Short hash of commit | ${{ steps.version.outputs.short }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build originates from branch | $(echo "${{ steps.version.outputs.branch }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker image version tag | $(echo "${{ steps.version.outputs.docker_tag }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Latest tag | $(echo "${{ steps.version.outputs.latest_tag }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployment tag | $(echo "${{ steps.version.outputs.deployment_tag }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          
+  Refresh:
+    runs-on: [self-hosted, protomodule]
+    needs: [Version]
+    environment:
+      name: ${{ inputs.environment }}
+
+    steps:
+      -
+        name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-access-key-id: ${{ secrets.aws_access_key_id }}
+          aws-secret-access-key: ${{ secrets.aws_secret_access_key }}
+          aws-region: ${{ secrets.aws_region }}
+      -
+        id: refresh
+        name: Start instance refresh
+        run: |
+          ENV_ID='${{ secrets.environment_identifier }}'
+          ENV_ID=${ENV_ID:-unknown}
+          if [ "$ENV_ID" = "unknown" ]; then echo "::error::GitHub Environment secret ENVIRONMENT_IDENTIFIER is missing"; exit 1; fi
+
+          SYSTEM_NAME='${{ inputs.system }}'
+          if [ "${{ secrets.environment_aio }}" == "yes" ]; then
+            SYSTEM_NAME=aio
+          fi
+          
+          ASG_NAME="${{ inputs.application }}-$ENV_ID-$SYSTEM_NAME"
+
+          echo "🔧  Reset EC2/ASG parameters for '$ASG_NAME'"
+          # aws autoscaling update-auto-scaling-group --auto-scaling-group-name $ASG_NAME --max-size 2
+          # aws autoscaling set-desired-capacity --auto-scaling-group-name $ASG_NAME --desired-capacity 1
+
+          echo "🚀  Initiate EC2/ASG instance refresh for ASG '$ASG_NAME'"
+          # INSTANCE_REFRESH=$(aws autoscaling start-instance-refresh --auto-scaling-group-name "$ASG_NAME")
+          # echo "::notice::🏗  Running instance refresh '$(echo "$INSTANCE_REFRESH" | jq -r ".InstanceRefreshId")' in background"
+          # INSTANCE_REFRESH_ID="$INSTANCE_REFRESH_ID,$(echo "$INSTANCE_REFRESH" | jq -r ".InstanceRefreshId")"
+
+          # echo "instance_refresh_id=${INSTANCE_REFRESH_ID#"${INSTANCE_REFRESH_ID%%[!,]*}"}" >> $GITHUB_OUTPUT
+          echo "instance_refresh_id=dummy" >> $GITHUB_OUTPUT
+      -
+        name: Summarize refresh
+        run: |
+          ENV_ID='${{ secrets.environment_identifier }}'
+          ENV_ID=${ENV_ID:-unknown}
+          SYSTEMS='${{ inputs.system }}'
+          if [ "${{ secrets.environment_aio }}" == "yes" ]; then
+            SYSTEMS=aio
+          fi
+          echo "### :rocket: ${{ inputs.application }} $(echo "$ENV_ID" | sed 's/./& /g') *$SYSTEMS* ASG refresh" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "| | Deployment Info |" >> $GITHUB_STEP_SUMMARY
+          echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Instance refresh ID | ${{ steps.refresh.outputs.instance_refresh_id }} |" >> $GITHUB_STEP_SUMMARY
+          
