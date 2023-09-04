@@ -112,14 +112,15 @@ jobs:
 
           echo "::notice::🔒 Saving new configuration to $SECRET_NAME"
           echo "::debug::$(echo "$AWS_SECRET" | jq .)"
-          # aws secretsmanager update-secret --secret-id "$SECRET_NAME" --secret-string "$(echo $AWS_SECRET | jq .)"
+          aws secretsmanager update-secret --secret-id "$SECRET_NAME" --secret-string "$(echo $AWS_SECRET | jq .)"
       -
         name: Summarize update
         run: |
-          echo "### :rocket: ${{ inputs.application }} *${{ secrets.systems }}* update" >> $GITHUB_STEP_SUMMARY
+          echo "### :rocket: ${{ inputs.application }} *$(echo "${{ inputs.system }}" | sed 's/./& /g')* update" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
           echo "| | Deployment Info |" >> $GITHUB_STEP_SUMMARY
           echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | $(echo "${{ secrets.environment_identifier }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
           echo "| Current version | $(echo "${{ steps.version.outputs.version }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
           echo "| Hash of commit | ${{ steps.version.outputs.commit }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Short hash of commit | ${{ steps.version.outputs.short }} |" >> $GITHUB_STEP_SUMMARY
@@ -157,17 +158,16 @@ jobs:
           
           ASG_NAME="${{ inputs.application }}-$ENV_ID-$SYSTEM_NAME"
 
-          echo "🔧  Reset EC2/ASG parameters for '$ASG_NAME'"
+          echo "🔧  Reset EC2/ASG parameters for '$(echo "$ASG_NAME" | sed 's/./& /g')'"
           # aws autoscaling update-auto-scaling-group --auto-scaling-group-name $ASG_NAME --max-size 2
           # aws autoscaling set-desired-capacity --auto-scaling-group-name $ASG_NAME --desired-capacity 1
 
-          echo "🚀  Initiate EC2/ASG instance refresh for ASG '$ASG_NAME'"
-          # INSTANCE_REFRESH=$(aws autoscaling start-instance-refresh --auto-scaling-group-name "$ASG_NAME")
-          # echo "::notice::🏗  Running instance refresh '$(echo "$INSTANCE_REFRESH" | jq -r ".InstanceRefreshId")' in background"
-          # INSTANCE_REFRESH_ID="$INSTANCE_REFRESH_ID,$(echo "$INSTANCE_REFRESH" | jq -r ".InstanceRefreshId")"
+          echo "🚀  Initiate EC2/ASG instance refresh for ASG '$(echo "$ASG_NAME" | sed 's/./& /g')'"
+          INSTANCE_REFRESH=$(aws autoscaling start-instance-refresh --auto-scaling-group-name "$ASG_NAME")
+          echo "::notice::🏗  Running instance refresh '$(echo "$INSTANCE_REFRESH" | jq -r ".InstanceRefreshId")' in background"
+          INSTANCE_REFRESH_ID="$INSTANCE_REFRESH_ID,$(echo "$INSTANCE_REFRESH" | jq -r ".InstanceRefreshId")"
 
-          # echo "instance_refresh_id=${INSTANCE_REFRESH_ID#"${INSTANCE_REFRESH_ID%%[!,]*}"}" >> $GITHUB_OUTPUT
-          echo "instance_refresh_id=dummy" >> $GITHUB_OUTPUT
+          echo "instance_refresh_id=${INSTANCE_REFRESH_ID#"${INSTANCE_REFRESH_ID%%[!,]*}"}" >> $GITHUB_OUTPUT
       -
         name: Summarize refresh
         run: |
@@ -177,7 +177,7 @@ jobs:
           if [ "${{ secrets.environment_aio }}" == "yes" ]; then
             SYSTEMS=aio
           fi
-          echo "### :rocket: ${{ inputs.application }} $(echo "$ENV_ID" | sed 's/./& /g') *$SYSTEMS* ASG refresh" >> $GITHUB_STEP_SUMMARY
+          echo "### :rocket: ${{ inputs.application }} - $(echo "$ENV_ID" | sed 's/./& /g') - $(echo "$SYSTEMS" | sed 's/./& /g') ASG refresh" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
           echo "| | Deployment Info |" >> $GITHUB_STEP_SUMMARY
           echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
