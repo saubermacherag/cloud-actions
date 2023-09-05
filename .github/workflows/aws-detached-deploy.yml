@@ -22,6 +22,17 @@ on:
         description: "System name of application"
         required: true
         type: string
+      asg_desired_capacity:
+        description: "Sets the ASG to the desired capacity on every deployment (also starts the system when specified). When 0 is specified ASG value is not changed."
+        required: true
+        type: number
+        default: 1
+      asg_max_size:
+        description: "Sets the maximum size of the ASG on every deployment"
+        required: true
+        type: number
+        default: 2
+
 
     secrets:
       aws_access_key_id:
@@ -158,10 +169,14 @@ jobs:
           
           ASG_NAME="${{ inputs.application }}-$ENV_ID-$SYSTEM_NAME"
 
-          echo "🔧  Reset EC2/ASG parameters for '$(echo "$ASG_NAME" | sed 's/./& /g')'"
-          # aws autoscaling update-auto-scaling-group --auto-scaling-group-name $ASG_NAME --max-size 2
-          # aws autoscaling set-desired-capacity --auto-scaling-group-name $ASG_NAME --desired-capacity 1
-
+          echo "🔧  Setting EC2/ASG parameters for '$(echo "$ASG_NAME" | sed 's/./& /g')'"
+          if [ "${{ inputs.asg_max_size }}" != "0" ]; then
+            aws autoscaling update-auto-scaling-group --auto-scaling-group-name $ASG_NAME --max-size ${{ inputs.asg_max_size }}
+          fi
+          if [ "${{ inputs.asg_desired_capacity }}" != "0" ]; then
+            aws autoscaling set-desired-capacity --auto-scaling-group-name $ASG_NAME --desired-capacity ${{ inputs.asg_desired_capacity }}
+          fi
+          
           echo "🚀  Initiate EC2/ASG instance refresh for ASG '$(echo "$ASG_NAME" | sed 's/./& /g')'"
           INSTANCE_REFRESH=$(aws autoscaling start-instance-refresh --auto-scaling-group-name "$ASG_NAME")
           echo "::notice::🏗  Running instance refresh '$(echo "$INSTANCE_REFRESH" | jq -r ".InstanceRefreshId")' in background"
