@@ -24,12 +24,10 @@ on:
         type: string
       asg_desired_capacity:
         description: "Sets the ASG to the desired capacity on every deployment (also starts the system when specified). When 0 is specified ASG value is not changed."
-        required: true
         type: number
         default: 1
       asg_max_size:
         description: "Sets the maximum size of the ASG on every deployment"
-        required: true
         type: number
         default: 2
 
