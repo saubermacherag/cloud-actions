@@ -12,6 +12,9 @@ on:
         description: "Name of application"
         required: true
         type: string
+      detached_system:
+        description: "Specify a single system to restart when multiple systems belong to this application."
+        type: string
 
     secrets:
       aws_access_key_id:
@@ -55,7 +58,9 @@ jobs:
           ENV_ID=${ENV_ID:-unknown}
           if [ "$ENV_ID" = "unknown" ]; then echo "::error::GitHub action input ENVIRONMENT_IDENTIFIER is missing"; exit 1; fi
 
+          DETACHED_SYSTEM='${{ inputs.detached_system }}'
           SYSTEMS='${{ secrets.systems }}'
+          SYSTEMS=${DETACHED_SYSTEM:-$SYSTEMS}
           if [ "${{ secrets.environment_aio }}" == "yes" ]; then
             SYSTEMS=aio
           fi
