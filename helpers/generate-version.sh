@@ -26,9 +26,11 @@ SHORT=`git rev-parse --short HEAD`
 TIMESTAMP=`date -u +"%Y-%m-%dT%H:%M:%SZ"`
 
 # Force branch name to be lowercase (convert / to -) and only allow numbers, characters and "-". Everything else is stripped.
-REMOTE_BRANCH=`git branch --remote --verbose --no-abbrev --contains | grep $(git rev-parse --verify HEAD) | sed -rne 's/^[^\/]*\/([^\ ]+).*$/\1/p' | tail -1`
+REMOTE_BRANCHES=`git branch --remote --verbose --no-abbrev --contains | grep $(git rev-parse --verify HEAD) | sed -rne 's/^[^\/]*\/([^\ ]+).*$/\1/p'`
+FALLBACK_REMOTE_BRANCH=`echo $REMOTE_BRANCHES | tail -1`
 LOCAL_BRANCH=`git rev-parse --abbrev-ref HEAD`
-BRANCH_NAME=${REMOTE_BRANCH:-$LOCAL_BRANCH}
+MATCHING_BRANCH=`echo $REMOTE_BRANCHES | grep -Fx '$LOCAL_BRANCH'`
+BRANCH_NAME=${MATCHING_BRANCH:-${REMOTE_BRANCH:-$LOCAL_BRANCH}}
 BRANCH=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | tr \/ - | tr \. - | sed "s/[^0-9a-z\-]//g")
 
 VERSION=`git describe --tags --abbrev=0 2> /dev/null | sed -e 's/-[0-9]*//g' | sed 's/[^0-9.]*//g'`
