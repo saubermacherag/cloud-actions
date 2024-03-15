@@ -63,7 +63,7 @@ jobs:
     steps:
       - 
         name: Checkout source code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       -
@@ -82,9 +82,34 @@ jobs:
           ENV_ID='${{ secrets.environment_identifier }}'
           ENV_ID=${ENV_ID:-unknown}
           if [ "$ENV_ID" = "unknown" ]; then echo "::error::GitHub Environment secret ENVIRONMENT_IDENTIFIER is missing"; exit 1; fi
+
+          FALLBACK_VERSION="${DOCKER_TAG:-${LATEST_TAG:-main-latest}}"
+          VERSION_OVERRIDE='{"core":"${{ inputs.version_core }}","web":"${{ inputs.version_web }}","ui":"${{ inputs.version_ui }}","auth":"${{ inputs.version_auth }}"}'
+          VERSION_OUTPUTS='{}'
+          SYSTEMS='${{ secrets.systems }}'
+          for SYSTEM_NAME in ${SYSTEMS//,/ }
+          do
+            if [[ "$SYSTEM_NAME" != *"gateway"* ]]; then
+              SYSTEM_VERSION="$(echo "$VERSION_OVERRIDE" | jq -r ".\"${SYSTEM_NAME%%-*}\" // empty")"
+              SYSTEM_VERSION=${SYSTEM_VERSION:-$FALLBACK_VERSION}
+
+              # Sanitize tag / branch name
+              if [[ "$SYSTEM_VERSION" =~ ^v?([0-9]+)(\.([0-9]+)(\.([0-9]+))?)?$ ]]; then
+                SYSTEM_VERSION=${SYSTEM_VERSION#"v"}
+              else
+                SYSTEM_VERSION="$(echo $SYSTEM_VERSION | tr \/ - | sed "s/[^0-9a-z\-]//g")"
+              fi
+
+              # Add version to output
+              VERSION_OUTPUTS=$(jq -rc ".\"${SYSTEM_NAME//-/_}\" = \"$SYSTEM_VERSION\"" <<< "$VERSION_OUTPUTS")
+            fi
+          done
+
+          # Set output
+          echo "system_versions='$VERSION_OUTPUTS'" >> $GITHUB_OUTPUT
       -
         name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1-node16
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.aws_access_key_id }}
           aws-secret-access-key: ${{ secrets.aws_secret_access_key }}
@@ -94,15 +119,14 @@ jobs:
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
           echo "ℹ️  Check images on AWS Account $(echo "$ACCOUNT_ID" | sed 's/./& /g')"
+          FALLBACK_VERSION="${{ steps.version.outputs.deployment_tag }}"
           SYSTEMS='${{ secrets.systems }}'
-          VERSION_OVERRIDE='{"core":"${{ inputs.version_core }}","web":"${{ inputs.version_web }}","ui":"${{ inputs.version_ui }}","auth":"${{ inputs.version_auth }}"}'
           for SYSTEM_NAME in ${SYSTEMS//,/ }
           do
             if [[ "$SYSTEM_NAME" != *"gateway"* ]]; then
               ECR_REPO=$(echo "${{ inputs.repository }}" | cut -d'-' -f 1 -)-$(echo "$SYSTEM_NAME" | cut -d'-' -f 1)
-              FALLBACK_VERSION="${{ steps.version.outputs.deployment_tag }}"
               OVERRIDE_VERSION="$(echo "$VERSION_OVERRIDE" | jq -r ".$SYSTEM_NAME // empty")"
-              SYSTEM_VERSION=${OVERRIDE_VERSION:-$FALLBACK_VERSION}
+              SYSTEM_VERSION=${"$(echo '${{ steps.version.outputs.system_versions }}' | jq -rc ".\"${SYSTEM_NAME//-/_}\" // empty")":-$FALLBACK_VERSION}
               if [[ "$(aws ecr describe-images --registry-id $ACCOUNT_ID --repository-name "$ECR_REPO" --image-ids imageTag="$SYSTEM_VERSION" | jq '.imageDetails | length')" == "1" ]]; then
                 echo "🐳  $ECR_REPO:$SYSTEM_VERSION exists";
               else
