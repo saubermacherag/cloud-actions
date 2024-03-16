@@ -105,8 +105,9 @@ jobs:
             fi
           done
 
-          # Set output
+          # Set output & log
           echo "system_versions='$VERSION_OUTPUTS'" >> $GITHUB_OUTPUT
+          echo "::notice::🏷️  Computed versions: $VERSION_OUTPUTS"
       -
         name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1-node16
