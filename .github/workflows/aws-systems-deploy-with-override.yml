@@ -92,6 +92,7 @@ jobs:
             if [[ "$SYSTEM_NAME" != *"gateway"* ]]; then
               SYSTEM_VERSION="$(echo "$VERSION_OVERRIDE" | jq -r ".\"${SYSTEM_NAME%%-*}\" // empty")"
               SYSTEM_VERSION=${SYSTEM_VERSION:-$FALLBACK_VERSION}
+              SYSTEM_VERSION="$(echo "$SYSTEM_VERSION" | tr '[:upper:]' '[:lower:]')" # Convert to lowercase
 
               # Sanitize tag / branch name
               if [[ "$SYSTEM_VERSION" =~ ^v?([0-9]+)(\.([0-9]+)(\.([0-9]+))?)?$ ]]; then
