@@ -107,7 +107,7 @@ jobs:
           done
 
           # Set output & log
-          echo "system_versions='$VERSION_OUTPUTS'" >> $GITHUB_OUTPUT
+          echo "system_versions=$VERSION_OUTPUTS" >> $GITHUB_OUTPUT
           echo "::notice::🏷️  Computed versions: $VERSION_OUTPUTS"
       -
         name: Configure AWS Credentials
