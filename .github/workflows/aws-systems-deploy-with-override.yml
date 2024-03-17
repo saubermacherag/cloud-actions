@@ -137,7 +137,7 @@ jobs:
               fi
               echo "::notice::🐳  Docker image for $SYSTEM_NAME is available in version $SYSTEM_VERSION"
             else
-              echo "::notice::⏭️  Skipping check for $ECR_REPO:$(echo "$SYSTEM_VERSION" | sed 's/./& /g')"
+              echo "::notice::⏭️  Skipping check for $SYSTEM_NAME"
             fi 
           done
           echo "::notice::✅  Docker images for all systems are available in versions"
