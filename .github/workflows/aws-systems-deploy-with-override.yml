@@ -127,8 +127,8 @@ jobs:
           do
             if [[ "$SYSTEM_NAME" != *"gateway"* ]]; then
               ECR_REPO=$(echo "${{ inputs.repository }}" | cut -d'-' -f 1 -)-$(echo "$SYSTEM_NAME" | cut -d'-' -f 1)
-              OVERRIDE_VERSION="$(echo "$VERSION_OVERRIDE" | jq -r ".$SYSTEM_NAME // empty")"
-              SYSTEM_VERSION=${"$(echo '${{ steps.version.outputs.system_versions }}' | jq -rc ".\"${SYSTEM_NAME//-/_}\" // empty")":-$FALLBACK_VERSION}
+              SELECTED_VERSION=$(echo '${{ steps.version.outputs.system_versions }}' | jq -rc ".\"${SYSTEM_NAME//-/_}\" // empty")
+              SYSTEM_VERSION=${$SELECTED_VERSION:-$FALLBACK_VERSION}
               if [[ "$(aws ecr describe-images --registry-id $ACCOUNT_ID --repository-name "$ECR_REPO" --image-ids imageTag="$SYSTEM_VERSION" | jq '.imageDetails | length')" == "1" ]]; then
                 echo "🐳  $ECR_REPO:$SYSTEM_VERSION exists";
               else
