@@ -141,3 +141,109 @@ jobs:
             fi 
           done
           echo "::notice::✅  Docker images for all systems are available in versions"
+      -
+        name: Set current version in runtime config on AWS Secrets Manager
+        run: |
+          ENV_ID='${{ secrets.environment_identifier }}'
+          ENV_ID=${ENV_ID:-unknown}
+          if [ "$ENV_ID" = "unknown" ]; then echo "::error::GitHub Environment secret ENVIRONMENT_IDENTIFIER is missing"; exit 1; fi
+          
+          echo "⬇️  Retrieve runtime config from AWS Secrets Manager"
+          SECRET_NAME="${{ inputs.application }}-runtime-versions"
+          CURRENT_SECRET=$(aws secretsmanager get-secret-value --secret-id "$SECRET_NAME" --query SecretString --output text)
+          AWS_SECRET=
+          SYSTEMS='${{ secrets.systems }}'
+          FALLBACK_VERSION="${{ steps.version.outputs.deployment_tag }}"
+
+          for SYSTEM_NAME in ${SYSTEMS//,/ }
+          do
+            if [[ "$SYSTEM_NAME" != *"gateway"* ]]; then
+              SELECTED_VERSION=$(echo '${{ steps.version.outputs.system_versions }}' | jq -rc ".\"${SYSTEM_NAME//-/_}\" // empty")
+              SYSTEM_VERSION=${SELECTED_VERSION:-$FALLBACK_VERSION}
+              echo "🏷  Set new version for $SYSTEM_NAME in runtime config on AWS Secrets Manager"
+              JQ_PATH=".\"$(echo "$ENV_ID" | tr -cd 0-9a-zA-Z\-)\".\"$(echo "$SYSTEM_NAME" | tr -cd 0-9a-zA-Z\- | cut -d'-' -f 1)\".deploy.version"
+              JQ_COMMAND="$JQ_PATH = \"$SYSTEM_VERSION\""
+              AWS_SECRET=$(echo "${AWS_SECRET:-$CURRENT_SECRET}" | (jq . 2> /dev/null || echo "{}") | jq "$JQ_COMMAND")
+              echo "::notice::⬆️ Updated runtime configuration for $SYSTEM_NAME from $(echo $CURRENT_SECRET | jq "$JQ_PATH" | sed 's/./& /g') to version \"$(echo "$SYSTEM_VERSION" | sed 's/./& /g')\""
+            else
+              echo "::notice::⏭️  Skipping version update for $SYSTEM_NAME"
+            fi 
+          done
+          echo "::notice::🔒 Saving new configuration to $SECRET_NAME"
+          echo "::debug::$(echo "$AWS_SECRET" | jq .)"
+          aws secretsmanager update-secret --secret-id "$SECRET_NAME" --secret-string "$(echo $AWS_SECRET | jq .)"
+      -
+        name: Summarize update
+        run: |
+          echo "### :rocket: ${{ inputs.application }} *${{ secrets.systems }}* update" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "| | Deployment Info |" >> $GITHUB_STEP_SUMMARY
+          echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Current version | $(echo "${{ steps.version.outputs.version }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Hash of commit | ${{ steps.version.outputs.commit }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Short hash of commit | ${{ steps.version.outputs.short }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build originates from branch | $(echo "${{ steps.version.outputs.branch }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker image version tag | $(echo "${{ steps.version.outputs.docker_tag }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Latest tag | $(echo "${{ steps.version.outputs.latest_tag }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployment tag | $(echo "${{ steps.version.outputs.deployment_tag }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Core override | $(echo "${{ inputs.version_core }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Web override | $(echo "${{ inputs.version_web }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| UI override | $(echo "${{ inputs.version_ui }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Auth override | $(echo "${{ inputs.version_auth }}" | sed 's/./& /g') |" >> $GITHUB_STEP_SUMMARY
+
+  Refresh:
+    runs-on: [self-hosted, protomodule]
+    needs: [Version]
+    environment:
+      name: ${{ inputs.environment }}
+
+    steps:
+      -
+        name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-access-key-id: ${{ secrets.aws_access_key_id }}
+          aws-secret-access-key: ${{ secrets.aws_secret_access_key }}
+          aws-region: ${{ secrets.aws_region }}
+      -
+        id: refresh
+        name: Start instance refresh
+        run: |
+          ENV_ID='${{ secrets.environment_identifier }}'
+          ENV_ID=${ENV_ID:-unknown}
+          if [ "$ENV_ID" = "unknown" ]; then echo "::error::GitHub Environment secret ENVIRONMENT_IDENTIFIER is missing"; exit 1; fi
+
+          SYSTEMS='${{ secrets.systems }}'
+          if [ "${{ secrets.environment_aio }}" == "yes" ]; then
+            SYSTEMS=aio
+          fi
+
+          for SYSTEM_NAME in ${SYSTEMS//,/ }
+          do
+            ASG_NAME="${{ inputs.application }}-$ENV_ID-$SYSTEM_NAME"
+
+            echo "🔧  Reset EC2/ASG parameters for '$ASG_NAME'"
+            aws autoscaling update-auto-scaling-group --auto-scaling-group-name $ASG_NAME --max-size 2
+            aws autoscaling set-desired-capacity --auto-scaling-group-name $ASG_NAME --desired-capacity 1
+
+            echo "🚀  Initiate EC2/ASG instance refresh for ASG '$ASG_NAME'"
+            INSTANCE_REFRESH=$(aws autoscaling start-instance-refresh --auto-scaling-group-name "$ASG_NAME")
+            echo "::notice::🏗  Running instance refresh '$(echo "$INSTANCE_REFRESH" | jq -r ".InstanceRefreshId")' in background"
+            INSTANCE_REFRESH_ID="$INSTANCE_REFRESH_ID,$(echo "$INSTANCE_REFRESH" | jq -r ".InstanceRefreshId")"
+          done
+          echo "instance_refresh_id=${INSTANCE_REFRESH_ID#"${INSTANCE_REFRESH_ID%%[!,]*}"}" >> $GITHUB_OUTPUT
+      -
+        name: Summarize refresh
+        run: |
+          ENV_ID='${{ secrets.environment_identifier }}'
+          ENV_ID=${ENV_ID:-unknown}
+          SYSTEMS='${{ secrets.systems }}'
+          if [ "${{ secrets.environment_aio }}" == "yes" ]; then
+            SYSTEMS=aio
+          fi
+          echo "### :rocket: ${{ inputs.application }} $(echo "$ENV_ID" | sed 's/./& /g') *$SYSTEMS* ASG refresh" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+          echo "| | Deployment Info |" >> $GITHUB_STEP_SUMMARY
+          echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Instance refresh ID | ${{ steps.refresh.outputs.instance_refresh_id }} |" >> $GITHUB_STEP_SUMMARY
+          
