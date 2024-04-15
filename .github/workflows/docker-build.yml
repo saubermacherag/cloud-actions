@@ -42,7 +42,10 @@ jobs:
       -
         name: Validate branch name
         run: |
-          [[ $(git branch) =~ ^[[:upper:]]+$ ]] && exit 1
+          branch_name=$(git rev-parse --abbrev-ref HEAD)
+          if [[ $branch_name =~ ^[A-Z]+$ ]]; then
+            exit 1
+          fi
       -
         name: Login to container registry
         uses: docker/login-action@v2
