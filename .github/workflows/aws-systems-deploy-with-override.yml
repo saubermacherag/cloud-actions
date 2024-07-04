@@ -51,6 +51,9 @@ on:
         description: "Specify if environment is running on AIO instance (string: yes/no)"
         required: false
 
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
 jobs:
   Version:
     runs-on: [self-hosted, protomodule]
@@ -61,7 +64,7 @@ jobs:
       short: ${{ steps.version.outputs.short }}
 
     steps:
-      - 
+      -
         name: Checkout source code
         uses: actions/checkout@v3
         with:
@@ -246,4 +249,3 @@ jobs:
           echo "| | Deployment Info |" >> $GITHUB_STEP_SUMMARY
           echo "| :-- | :-- |" >> $GITHUB_STEP_SUMMARY
           echo "| Instance refresh ID | ${{ steps.refresh.outputs.instance_refresh_id }} |" >> $GITHUB_STEP_SUMMARY
-          
