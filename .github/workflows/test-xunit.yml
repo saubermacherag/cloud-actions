@@ -12,6 +12,9 @@ on:
         type: string
         default: ""
 
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
 jobs:
   NPM:
     runs-on: [self-hosted, protomodule]
@@ -60,14 +63,14 @@ jobs:
           else
             echo -e "⏭️  Skipping tests (no test script found in package.json)";
           fi
-      - 
+      -
         name: Upload test artifacts
         uses: actions/upload-artifact@v3
         with:
           name: Test report
           path: report.*
         if: always()
-      - 
+      -
         name: Publish Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
         id: results
