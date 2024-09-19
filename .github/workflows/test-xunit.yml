@@ -38,30 +38,36 @@ jobs:
       -
         name: Run tests
         run: |
-          if [ ! -f package.json ]; then
-            echo -e "🛑  STOPPING BUILD → No 'package.json' is found in project root.";
-            exit 1
-          fi
-          if [[ $(jq '.scripts["test"]' < package.json;) != null ]]; then
-            # Test script exists
-            rm -rf node_modules
-
-            if test -f "yarn.lock"; then
-              # Using yarn
-              echo -e "🕵️‍♂️  Detected YARN setup. Running 'yarn test' with TAP enabled.";
-              docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app node:${{ inputs.version }} \
-                /bin/bash -c "yarn install && yarn -s test --tap ${{ inputs.parameters }} | tee report.tap"
-            else
-              # Using NPM
-              # https://stackoverflow.com/questions/44633419/no-access-permission-error-with-npm-global-install-on-docker-image#45505787
-              echo -e "🕵️‍♂️  Detected NPM setup. Running 'npm test' with TAP enabled.";
-              docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app -u node node:${{ inputs.version }} \
-                /bin/bash -c "npm install && npm test --silent -- --tap ${{ inputs.parameters }} | tee report.tap"
+          last_commit_message=$(git log -1 --pretty=%B)
+          if [[ $last_commit_message != *"[notests]"* ]]; then
+            if [ ! -f package.json ]; then
+              echo -e "🛑  STOPPING BUILD → No 'package.json' is found in project root.";
+              exit 1
             fi
-            echo -e "📄  Convert test results from TAP to XUnit";
-            cat report.tap | npx tap-xunit > report.xml
+
+            if [[ $(jq '.scripts["test"]' < package.json;) != null ]]; then
+              # Test script exists
+              rm -rf node_modules
+  
+              if test -f "yarn.lock"; then
+                # Using yarn
+                echo -e "🕵️‍♂️  Detected YARN setup. Running 'yarn test' with TAP enabled.";
+                docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app node:${{ inputs.version }} \
+                  /bin/bash -c "yarn install && yarn -s test --tap ${{ inputs.parameters }} | tee report.tap"
+              else
+                # Using NPM
+                # https://stackoverflow.com/questions/44633419/no-access-permission-error-with-npm-global-install-on-docker-image#45505787
+                echo -e "🕵️‍♂️  Detected NPM setup. Running 'npm test' with TAP enabled.";
+                docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app -u node node:${{ inputs.version }} \
+                  /bin/bash -c "npm install && npm test --silent -- --tap ${{ inputs.parameters }} | tee report.tap"
+              fi
+              echo -e "📄  Convert test results from TAP to XUnit";
+              cat report.tap | npx tap-xunit > report.xml
+            else
+              echo -e "⏭️  Skipping tests (no test script found in package.json)";
+            fi
           else
-            echo -e "⏭️  Skipping tests (no test script found in package.json)";
+            echo -e "⏭️  Skipping tests ('[notests]' is in commit message)";
           fi
       -
         name: Upload test artifacts
