@@ -39,7 +39,7 @@ jobs:
         name: Run tests
         run: |
           last_commit_message=$(git log -1 --pretty=%B)
-          if [[ $last_commit_message != *"[notests]"* ]]; then
+          if [[ $last_commit_message != *"[norisknofun]"* ]]; then
             if [ ! -f package.json ]; then
               echo -e "🛑  STOPPING BUILD → No 'package.json' is found in project root.";
               exit 1
@@ -67,7 +67,7 @@ jobs:
               echo -e "⏭️  Skipping tests (no test script found in package.json)";
             fi
           else
-            echo -e "⏭️  Skipping tests ('[notests]' is in commit message)";
+            echo -e "⏭️  Skipping tests ('[norisknofun]' is in commit message)";
           fi
       -
         name: Upload test artifacts
